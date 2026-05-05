@@ -33,6 +33,7 @@
 
 \usepackage{makecell}
 \usepackage{amsmath}
+\usepackage{amssymb}
 \usepackage{graphicx}
 \usepackage{array}
 
@@ -439,40 +440,46 @@ Note that, since the number of SBSs exceeds the number of available GPUs, it is 
 
 \begin{table}[htp]
 \centering
-\caption{OGAN's input Parameters}
-\label{tab:parameters}
+\caption{OGAN's input parameters}
+\label{tab:ogan_inputs}
 \renewcommand{\arraystretch}{1.5} % Adjust this value to increase the height of all rows
 \begin{tabular}{|c|l|}
 \hline
-\multicolumn{2}{|c|}{\textbf{Input Parameters}} \\
+\multicolumn{2}{|c|}{\textbf{Input parameters}} \\
 \hline
-$\eta_i^{(g)}$ & The number of GPU cycles used in each iteration of GAN $i$ training \\
+$\eta_i^{(g)}$ & GPU cycles consumed per iteration of $\mathrm{GAN}_i$ \\
 \hline
-$\eta_j^{(c)}$ & The number of CPU cycles used for each step in pre-training DRL $i$ \\
+$\eta_i^{(c)}$ & CPU cycles consumed per DRL training step $i$ \\
 \hline
-$E_i^{min}$ & Lower bound of the estimation error for GAN $i$ \\
+$E_i^{\max}$ & Upper tolerance on surrogate NND fidelity for $\mathrm{GAN}_i$ \\
 \hline
-$\Psi_i$ & Maximum number of CPU cores can assigned for pre-training of DRL $i$ \\
+$\Psi_i$ & Maximum CPU cores usable for $\mathrm{DRL}_i$ at the MEC \\
 \hline
-$T_i^{max}$ & Remaining time until the end of current wireless episode \\
+$T_i^{\max}$ & Remaining time until the wireless episode terminates \\
 \hline
-$\Phi_i$ & The upper bound of the training step for pre-training of DRL $i$ \\
+$\Phi_i$ & Anticipated DRL training steps scheduled for iteration $i$ \\
 \hline
-$B$ & Shared bandwidth from SBS $i$ to MBS \\
+$B^{\mathrm{bh}}$ & Aggregate backhaul spectral budget pooled across selective uploads \eqref{eq:bw_all} \\
 \hline
-$B_i$ & Bandwidth from SBS $i$ to MBS \\
+$B_i$ & Dedicated bandwidth (Hz) contracted for uplink \(i\to\mathrm{MBS}\) when active \\
 \hline
-$N_\Upsilon$ & Dataset storing rare samples of DRL $i$ \\
+$R_i$ & \(\mathrm{SBS}_i\to\mathrm{MBS}\) attainable rate \(B_i\log_2(1+\mathrm{SNR}_i)\), bit/s \\
 \hline
-$N_g$ & The number of GPUs available in the cloud \\
+$R^{\mathrm{cloud}}$ & \(\mathrm{MBS}\to\)cloud egress budget aggregated in \eqref{eq:R_all} \\
 \hline
-$N_c$ & The number of CPU cores available in the edge \\
+$R_i^{\mathrm{dc}}$ & Goodput attributable to \(\Upsilon_i\) traversing \(\mathrm{MBS}\to\)cloud conduit \\
 \hline
-$N$ & Number of all SBSs \\
+$N_{\Upsilon_i}$, $\bar{V}_i$, $\bar{W}_i$ & Rare-sample cardinality and calibrated Frobenius aggregates from Tab.~\ref{tab:offline_training} \\
 \hline
-$F_g$ & Frequency of each GPU \\
+$\lambda_t$, $\lambda_e$ & Weights regulating latency vs fidelity in (\ref{eq:obj}) \\
 \hline
-$F_c$ & Frequency of each CPU \\
+$c^{\min}$ & Minimum nonzero CPU allotment when \(z_i=1\) \\
+\hline
+$m_i^{\max}$ & Architectural cap on iterative GAN depth per episode \\
+\hline
+$N_g$, $N_c$, $N$ & Available GPUs (cloud); CPU cores at MEC; total SBSs \\
+\hline
+$F_g$, $F_c$ & GPU/CPU throughput scaling factors (effective cycles\,s\(^{-1}\)) \\
 \hline
 \end{tabular}
 \end{table}
@@ -518,7 +525,7 @@ OGAN reads as follows:
 
 
 
-The objective function in (\ref{eq:obj}) minimizes two components. The first component, $(1-z_i)T_i^{max}$, represents the time DRL $i$ operates without fine-tuning its parameters using a GAN. In the case of $z_i=1$, the second component, $z_i(T_i^{com} + T_i^{gan} + T_i^{tr} + \alpha(\frac{\bar{V}_{N_\psilon}}{\sqrt{m_i}} + \frac{\bar{W}_{N_\epsilon}}{\sqrt{N_\epsilon_i}}))$, achieves a trade-off between two conflicting objectives: reducing $E_i$ and the total training time of GAN $i$ and DRL $i$, using the weight parameter $\alpha$. It is necessary to allocate a greater number of resources to training GAN $i$ when $\Tilde{\beta_i}$ is higher, as it indicates greater unreliability in communication with SBS $i$. Notably, more resources ($\mathbf{m}$, $\mathbf{c}$) reduce the training time (GAN, DRL), resulting in greater URLLC reliability.
+Objective (\ref{eq:obj}) penalises remaining idle with a unit miss term \(1-z_i\). When \(z_i=1\), it aggregates episode-normalised latency \(\lambda_t(T_i^{com}+m_i\eta_i^{(g)}/F_g+\Phi_i\eta_i^{(c)}/(F_cc_i))/T_i^{\max}\) and normalised surrogate fidelity \(\lambda_e(\bar{V}_i/\sqrt{m_i}+\bar{W}_i/\sqrt{N_{\Upsilon_i}})/E_i^{\max}\) from (\ref{eq:gan_error}); \(\lambda_t\) and \(\lambda_e\) keep seconds and unitless error on comparable scales (often \(\lambda_t+\lambda_e=1\)). Larger \(\tilde{\beta}_i\) drives resource toward SBSs with higher empirical loss ratios \(\beta_i=\nu_i^l/\nu_i^t\) after normalisation.
 
 
 
@@ -529,7 +536,7 @@ Constraint (\ref{eq:time}) enforces sequential upload, GAN, and DRL times within
 \begin{table}[t]
 \centering
 \caption{OGAN's decision variables}
-\label{tab:parameters}
+\label{tab:ogan_decision_vars}
 \renewcommand{\arraystretch}{1.5} % Adjust this value to increase the height of all rows
 \begin{tabular}{|c|l|}
 \hline
