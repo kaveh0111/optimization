@@ -114,23 +114,28 @@ Due to the high cost, geographic deployment challenges, and the need for system 
 
 
 
- The downlink channel of each SBS is shared based on OFDMA to deliver URLLC service. UDN network serves a set $\mathcal{L}$ of $L$ users distributed evenly among all SBSs. For simplicity, I assume each user $l$ is only served with a single SBS $i$, $\forall i \in \mathcal{N}$ and $\forall l \in \mathcal{L}$. The downlink transmission rate from the SBS $i$ to user \(l\) is given by:
+The downlink channel of each SBS is shared based on OFDMA to deliver URLLC service. The network serves a set $\mathcal{L}$ of $L$ users distributed evenly among all SBSs. For simplicity, I assume each user $l$ is served by a single SBS denoted $i(l)$ during a wireless episode, with $\mathcal{N}=\{1,\ldots,N\}$ indexing the set of SBSs. RBs are indexed by $k\in\{1,\ldots,K_i\}$ to avoid ambiguity with binary training decisions $z_i$ used later in OGAN. The downlink transmission rate from SBS $i$ to user $l$ served by $i$ is
 \begin{equation}
- r_{l}(t) = \sum_{z=1}^{K_i} \rho_{lz}(t) B \log_{2} \left(1 + \frac{p_{lz}(t)h_{lz}(t)}{\sigma^2} \right), 
+ r_{il}(t) = \sum_{k=1}^{K_i} \rho_{ilk}(t)\, B_{\mathrm{RB}} \log_{2} \left(1 + \frac{p_{ilk}(t)\, h_{ilk}(t)}{\sigma^2 + I_{ilk}(t)} \right),
 \end{equation}
-where \(B\) is the bandwidth of the resource block (RB), and \(h_{ilz}(t)\) represents the time-varying channel gain of the transmission from the SBS $i$ to user \(l\) on RB \(z\) at time slot \(t\). \(p_{ilz}(t)\) denotes the downlink transmission power of the BS $i$ on RB \(z\) to user \(l\) at slot \(t\). $K_i$ is the number of RBs of SBS $i$ while \( \rho_{lz}(t) \) serves as the RB allocation indicator, with \( \rho_{ilz}(t) = 1 \) when RB \(z\) is allocated to user $l$ from SBS $i$. OFDMA resource allocation is performed distributed on each SBSs $i$ with its dedicated DRL agent, DRL $i$ where $i \in \mathcal{N}$. Following I present formulation of the DRL agent.
+where $B_{\mathrm{RB}}$ is the bandwidth (Hz) per RB, \(h_{ilk}(t)\) is the time-varying channel gain from SBS $i$ to user $l$ on RB $k$ at slot \(t\), \(p_{ilk}(t)\) is downlink transmit power on that RB-user pair, \(\sigma^2\) is the noise power, and \(I_{ilk}(t)\) aggregates co-channel interference onto RB \(k\) (e.g., from neighbouring cells operating on the same time-frequency resources). One may omit interference \(I_{ilk}(t)\equiv 0\) as a simplifying assumption equivalent to negligible inter-cell coupling on RB $k$.
+ Here \(\rho_{ilk}(t)\in\{0,1\}\) equals $1$ if RB \(k\) of SBS $i$ is assigned to user $l$. OFDMA scheduling is computed at each SBS $i$ by its DRL agent, DRL $i$. Below I summarise the DRL formulation.
 
 
-\subsection{Deep Reinforcement Learning}  I consider the DRL model presented in (\cite{kasgari2020experienced}) for 5G URLLC OFDMA resource allocation, as shown in Figure \ref{fig:enter-label}. At each transmission interval, DRL $i$ receives the current environment state and reward from the SBS $i$ as input. The DRL model incorporates two inputs as its reward to evaluate its performance and update its DNN parameters in each time slot: the total downlink power of SBS $i$ denoted as \( P_i(t) = \sum_{l} \sum_{z} p_{lz}(t) \), and the measured reliability of each user at each time slot t is ($1-\gamma_l(t)$) where $\gamma_l(t)$ is given by:
+\subsection{Deep Reinforcement Learning}  I consider the DRL model presented in (\cite{kasgari2020experienced}) for 5G URLLC OFDMA resource allocation, as shown in Figure \ref{fig:enter-label}. At each transmission interval, DRL $i$ receives the current environment state and reward from SBS $i$ as input. The reward uses the total downlink power of SBS $i$, \( P_i(t) = \sum_{l \in \mathcal{L}_i} \sum_{k=1}^{K_i} p_{ilk}(t) \), where \(\mathcal{L}_i\) denotes users assigned to $i$, and the empirical unreliability of user $l$. Let reliability be $(1-\gamma_l(t))$ with
 \begin{equation}
-    \gamma_l(t) \approx 1 - \frac{\mu^{'}_l(t)}{\mu_l(t)},
+    \gamma_l(t) =
+    \begin{cases}
+    1 - \dfrac{\mu^{'}_l(t)}{\mu_l(t)}, & \mu_l(t) > 0,\\
+    0, & \mu_l(t) = 0,
+    \end{cases}
 \end{equation}
- where \( \mu^{'}_{l}(t) \) represents the number of packets received by user $l$ and \( \mu_l(t) \) is the total number of packets transmitted to user $l$ at time slot $t$. Note that it is an empirical measurement for unreliability so there is no requirements for assumptions about unreliability. 
+where \( \mu^{'}_{l}(t)\) counts packets correctly received by user $l$ and \(\mu_l(t)\) counts packets transmitted to $l$ in slot \(t\) (thus \(\gamma_l(t)\in[0,1]\) whenever \(\mu'_l\le\mu_l\)).
 
-The channel gains of each user, denoted by \(h_{lz}(t)\), the number of packets \( \hat{\mu}_l(t) \) transmitted to each user \(l\), and the average packet length \( \hat{\beta}_l(t) \) for each user \(l\) are the environment state of agent, formulated as \( s_t = (\hat{\mu}_l(t), \hat{\beta}_l(t),h_{lz}(t)) \) for all \(l \in L\), \(z \in K\). 
+The channel gains \(h_{ilk}(t)\) for \(l\in\mathcal{L}_i\), the empirical packet counts \(\hat{\mu}_l(t)\), and the average packet length \(\hat{\ell}_l(t)\) (bytes or bits according to simulator convention) comprise the agent state; for brevity, \( s_t \) stacks \((\hat{\mu}_l(t), \hat{\ell}_l(t), h_{ilk}(t))\) over \(l\) and \(k\) at SBS $i$.
 
 
- Using these parameters as the state space, the DRL agent learns optimal policies for OFDMA resource allocation. To do that, DRL $i$ determines \( \rho_{lz}(t) \) and \( p_{lz}(t) \), its action, for all users served by SBS $i$. Through iterative assignment of \( \rho_{lz}(t) \) and \( p_{lz}(t) \) and receiving feedback across multiple time slots, the system can consistently uphold user reliability, latency, and throughput. The action \(a_t = (p_{lz}(t), \rho_{lz}(t))\) for all users \(l\) and RBs \(z\) which are  the transmission power and RB allocation to users. Subsequently, the reward of DRL is determined to  to ensure the QoS for URLLC.
+Using this state space, each DRL $i$ learns a policy mapping to actions \(\rho_{ilk}(t)\) and \(p_{ilk}(t)\) over users and RBs. The action aggregates power and RB indicators, \(a_t = (p_{ilk}(t), \rho_{ilk}(t))\) for \(l\in\mathcal{L}_i\), \(k\in\{1,\ldots,K_i\}\); the reward integrates power and \(\gamma_l(t)\) to reflect URLLC QoS objectives.
 
 
 \begin{figure}
@@ -138,7 +143,7 @@ The channel gains of each user, denoted by \(h_{lz}(t)\), the number of packets 
     \fbox{
         \includegraphics[width=0.95\textwidth]{Single_DRL_model.png}
     }
-    \\ \parbox{0.88\textwidth}{\caption[DRL model for OFDMA RB allocation]{DRL model for OFDMA resource block (RB) allocation in a cell with \(L\) users and \(K\) sub-carriers. The DRL agent takes the environment state (Channel Gain Matrix of users) and outputs actions in the form of RB allocation matrices. These actions are then used by the SBS to determine the transmission rate of users. The reward is fed back to the DRL agent to update its policy and improve future allocations.}\label{fig:enter-label}}
+    \\ \parbox{0.88\textwidth}{\caption[DRL model for OFDMA RB allocation]{DRL model for OFDMA resource block (RB) allocation in a cell with \(L\) users and \(K\) sub-carriers. The DRL agent takes the environment state (channel gains per RB) and outputs actions in the form of RB-allocation matrices. These actions drive SBS schedules and inferred user rates. The reward feeds back into policy optimisation.}\label{fig:enter-label}}
 \end{figure}
 
 
@@ -176,7 +181,7 @@ The presence of rare samples within the state-space of DRL can lead to unreliabl
 
 
 \subsection{GAN}
-In this section I present the GAN model used for augmenting rare smaples. My GAN has two DNNs, a Generator and a Discriminator, which are trained concurrently through adversarial processes. The architecture and functionality of each component are detailed below.
+In this section I present the GAN model used for augmenting rare samples. My GAN has two DNNs, a Generator and a Discriminator, which are trained concurrently through adversarial processes. The architecture and functionality of each component are detailed below.
 
 
 \subsubsection{Discriminator}
@@ -290,13 +295,13 @@ The dataset \( \Upsilon_i \) accommodates \( N_{\Upsilon_i} \) samples, capturin
 During the training of a GAN, its discriminator (Di) evaluates the quality of the generated samples produced by the generator (Ge) using feedback measures known as Neural Net Distance (NND). NND quantifies the degree of dissimilarity between the generated data and the real dataset. Various metrics can be employed as NND during the training of GANs. The training process involves solving a minimax problem through empirical risk minimization, wherein an estimation error \(\epsilon\) is associated with NND. Estimation error \(\epsilon\) refers to the difference between the empirical risk (i.e., the average loss over the training data) and the true risk (i.e., the expected loss over the entire data distribution).
 
 
-Based on the analysis of Rademacher complexity conducted by the authors in (\cite{ji2021understanding}), they identify an upper bound error associated with NND, denoted as $E$. It's noteworthy that their investigation focuses on GAN models employing Rectified Linear Unit (ReLU) activation functions. In their proposed model, they consider the size of the training dataset, denoted as $N_\Upsilon$, and the number of unique fake samples, denoted as $m$, generated and evaluated during the training phase. Particularly, when the dimension of the input noise vector is large, such as 128, the parameter $m$ can be regarded as the number of training iterations for the GAN model. Inspired by their research, I suggest a compressed version of $E$ as follows:
-\begin{equation}\label{eq:gan_error}
-E = \frac{V}{\sqrt{m}} + \frac{W}{\sqrt{N_\Upsilon}},
-\end{equation}
-where $V$ and $W$ are sums of the Frobenius norm of the generator and discriminator parameter matrices, respectively. When $E$ reduces, GAN's probability distribution of the generated data samples approaches the probability distribution of real data. Note that Eq. \ref{eq:gan_error} indicates that by increasing the values of $m$ (number of GAN training iterations) and $N_\Upsilon$ (number of training samples), the value of $E$ decreases. This observation implies that as more training iterations and samples are utilized, the upper bound error associated with NND in GAN models diminishes.
+Based on Rademacher-complexity arguments (\cite{ji2021understanding}), the surrogate NND estimation error diminishes when both dataset size \(N_{\Upsilon}\) and GAN iterative depth \(m_i\) increase. Offline calibration (\cite{zhou2020learning}) aggregates Frobenius norms \(\bar{V}_i,\bar{W}_i\) conditional on cardinality \(|\Upsilon_i|=N_{\Upsilon_i}\) under a fixed discriminator/generator backbone; \(\bar{V}_i,\bar{W}_i\) hence enter optimisation as calibrated inputs interpolated or snapped according to \(\lvert\Upsilon_i\rvert\).
 
-According to (\cite{zhou2020learning}), $V$ and $W$ can be obtained through offline training of GANs using different sample size $N_{\Upsilon}$. The sizes of my  datasets used for offline training are selected from the list ($N_{\Upsilon}^{(1)}, N_{\Upsilon}^{(2)}, N_{\Upsilon}^{(3)}, N_{\Upsilon}^{(4)})$ = (1,000, 2,000, 3,000, 4,000). After conducting 500 GANs trials for each values of ${N_{\Upsilon}}$, I calculate the averaged values for $V$ and $W$, labeled as $\bar{V}_{N_{\Upsilon}}$ and $\bar{W}_{N_{\Upsilon}}$, respectively. The resulting tuples of \{$\bar{V}_{N_{\Upsilon}}$, ̄$\bar{W}_{N_{\Upsilon}}$\} corresponding to the aforementioned list are given by (\{14.41, 13.17\}, \{15.2, 14.1\}, \{14.80,13.78\}, \{14.52, 13.42\}). 
+For each SBS \(i\), the surrogate used in OGAN is
+\begin{equation}\label{eq:gan_error}
+E_i=\frac{\bar{V}_i}{\sqrt{m_i}}+\frac{\bar{W}_i}{\sqrt{N_{\Upsilon_i}}},
+\end{equation}
+where \(m_i\) denotes the iterative training depth decided centrally alongside binary selection \(z_i\) (constraints later disable \(z_i=0\) cases so \(m_i>0\) when training).
 
 
 \begin{table}[h]
@@ -337,7 +342,7 @@ The large datasets used for DRL fine-tuning should be hosted in the MEC to reduc
 The MEC has $N_c$ CPU cores in total, each operating at a frequency of $F_c$ GHz. The pre-training time for DRL $i$ is given by $T_{i}^{tr} = (\Phi_i.\eta_i^{(c)})/(F_c . c_{i})$, where $c_i$ is the allocated number of CPU cores, and $\Phi_i$ is the number of steps to train DRL $i$. I denote the vector $\mathbf{c} = \{c_i\} \in \mathbb{R}^N$. A maximum of $\Psi_i$ CPU cores can be used for training DRL $i$. Since the data distribution remains constant within an episode, the number of training iterations for DRL agent $i$, denoted as $\Phi_i$, is estimated based on the number of training iterations of its current version. As all DRL agents are pre-trained, $\Phi_i$ is readily available from the start.
 
 
- The time required for SBS $i$ to upload dataset $\Upsilon_i$ to MBS is $T_i^{com} = |\Upsilon_i| / R_i$ , where $|\Upsilon_i|$ is the size of $\Upsilon_i$ in MByte, and $R_i$ is the available bandwidth from SBS $i$ to the MBS given by $R_i = B_i . log_2(1+SNR_i)$ where $B_i$ is the channel bandwidth of SBS $i$ and $SNR_i$ is its average signal-to-noise ratio which is assumed to be constant over a long period of time (\cite{xie2023edge}). Besides, since the size of DNNs (GAN and DRL) is very small compared to the dataset, their transmission time can be discarded or be a small constant number in my  model.
+ The upload time for dataset $\Upsilon_i$ from SBS $i$ to the MBS is \(T_i^{com} = 8\times 10^{6}\,\lvert\Upsilon_i\rvert_{\mathrm{MB}} / R_i\), where \(\lvert\Upsilon_i\rvert_{\mathrm{MB}}\) is MiB, \(R_i=B_i\log_{2}(1+\mathrm{SNR}_i)\) is the backhaul rate in bit/s using dedicated bandwidth \(B_i\) for link \(i\), \(\mathrm{SNR}_i\) is long-term averaged (\cite{xie2023edge}). The factor converts MiB \(\rightarrow\) bits. Omit DNN payloads relative to \(\Upsilon_i\).
 
 
 \subsubsection{Central Controller}
@@ -357,7 +362,7 @@ The MEC has $N_c$ CPU cores in total, each operating at a frequency of $F_c$ GHz
 
 \label{alg:cnt}
 
-\KwIn{inputs set:($\eta_i^{(g)}, \eta_j^{(c)}, E_i^{min}, \Psi_i, T_i^{max}, \Phi_i, B, B_i, N_\Upsilon, N_g, N_c, N, F_g, F_c$)} 
+\KwIn{inputs set:($\eta_i^{(g)}, \eta_i^{(c)}, E_i^{\max}, \Psi_i, T_i^{\max}, \Phi_i, B^{\mathrm{bh}}, R^{\mathrm{cloud}}, B_i^{\mathrm{bh}}, N_{\Upsilon_i}, \bar{V}_i, \bar{W}_i, \lambda_t, \lambda_e, m_i^{\max}, c^{\min}, N_g, N_c, N, F_g, F_c$)}
 \KwOut{outputs set:($m_i, c_i, z_i$)}
 \BlankLine
 
@@ -407,8 +412,8 @@ return to the initial stage (line 1)
 
     \item Continuously monitor both MEC and cloud to detect changes in available GPUs ($N_g$) and CPU cores ($N_c$). 
     \item If $N_g$ or $N_c$ changes and both of them are greater than zero, initiate pre-fetching of the following parameters from SBS $i$: $\nu_i^t$ (total transmitted packets), $\nu_i^l$ (total packet loss), $|\Upsilon_i|$ (dataset size), and $B_i$ (available back-haul bandwidth).
-    \item Calculate a weight factor $\beta_i = \nu_i^l/\nu_i^t$ to assess the reliability of SBS $i$. For a fair comparison of SBSs based on their contribution to system unreliability, compute the normalized $\Tilde{\beta_i}$.
-    \item  Solve OGAN to determine whether a GAN should be trained for SBS $i$ (variable $\mathbf{z}$), then allocates resources on cloud (variable $\mathbf{m}$) and MEC (variable $\mathbf{z}$) accordingly.
+    \item Calculate an unreliability weight $\beta_i = \nu_i^l/\nu_i^t$ (define $\beta_i=0$ if $\nu_i^t=0$). Normalise across SBSs via $\tilde{\beta}_i=\beta_i/\sum_{j\in\mathcal{N}}\beta_j$ when $\sum_j\beta_j>0$, otherwise set $\tilde{\beta}_i=1/N$.
+    \item  Solve OGAN to determine whether a GAN should be trained for SBS $i$ (variable $\mathbf{z}$), then allocate cloud iterations $\mathbf{m}$ and MEC CPU shares $\mathbf{c}$ accordingly.
     
     \item If $\mathbf{z}$ == 0, return to the initial step, awaiting to change in $N_c$ and $N_g$.
     
@@ -487,7 +492,9 @@ $F_c$ & Frequency of each CPU \\
 
 
 
- my  proposed resource-constrained GAN optimization model, OGAN is as follow:  
+ my proposed resource-constrained GAN optimisation model OGAN aggregates communication and compute latencies \(T_i^{com}\), \(T_i^{gan}=m_i\eta_i^{(g)}/F_g\), and \(T_i^{tr}=\Phi_i\eta_i^{(c)}/(F_c c_i)\) for each selectable SBS \(i\in\mathcal{N}\). Decision weights \(\lambda_t,\lambda_e\geq 0\) balance normalised latency against normalised surrogate GAN quality (prefer \(\lambda_t+\lambda_e=1\)). Choose \(c^{\min}\geq 1\) when \(c_i\) counts whole cores so that \(z_i=1\) never triggers division by zero; if fractional time-sharing replaces core counts with continuous capacity, \(c^{\min}\) becomes a positive slack (e.g. \(\varepsilon\) FLOPs worth of share).
+
+OGAN reads as follows:  
 
 
 
@@ -495,17 +502,17 @@ $F_c$ & Frequency of each CPU \\
 
 \begin{subequations} \label{eq:subeqnsss}
 \begin{align}
-& \min_{\mathbf{z}, \mathbf{m}, \mathbf{c}} \sum_{i=1}^{N}{\Tilde{\beta_i}((1-z_i)T_i^{max} + z_i(T_i^{com} + T_i^{gan} + T_i^{tr} + \alpha(\frac{\bar{V}_{N_\Upsilon}}{\sqrt{m_i}} + \frac{\bar{W}_{N_\Upsilon}}{\sqrt{N_\Upsilon_i}})))} \label{eq:obj} \\
+& \min_{\mathbf{z}, \mathbf{m}, \mathbf{c}} \sum_{i=1}^{N}\tilde{\beta}_i\Big[(1-z_i) + z_i\Big(\lambda_t\frac{T_i^{com}+\frac{m_i\eta_i^{(g)}}{F_g}+\frac{\Phi_i\eta_i^{(c)}}{F_c c_i}}{T_i^{max}}+\lambda_e\frac{\frac{\bar{V}_i}{\sqrt{m_i}}+\frac{\bar{W}_i}{\sqrt{N_{\Upsilon_i}}}}{E_i^{\max}}\Big)\Big] \label{eq:obj} \\
 \text{s.t.} & \nonumber \\
-& z_i(T_{i}^{com} + \frac{m_i.\eta_i^{(g)}}{F_g} + \frac{\Phi_i.\eta_i^{(c)}}{F_c . c_{i}}) \leq T_{i}^{max} , \quad \forall i \in \mathcal{N},	\label{eq:time}\\
-& z_i(\frac{\bar{V}_{N_\Upsilon}}{\sqrt{m_i}} + \frac{\bar{W}_{N_\Upsilon}}{\sqrt{N_\Upsilon_i}}) \leq E_i^{min} , \quad \forall i \in \mathcal{N}, \label{eq:error}\\
-& \sum_{i=1}^{N}{z_i . R_i} \leq R, \label{eq:R_all} \\
-& \sum_{i=1}^{N}{z_i . B_i} \leq B, \label{eq:bw_all} \\
-& \sum_{i=1}^{N}{c_i} \leq N_c, \label{eq:sum_cpus} \\
-& 0 \leq c_{i} \leq  \Psi_i , \quad \forall i \in \mathcal{N}, \label{eq:c_limits} \\
+& z_i\Big(T_i^{com}+\frac{m_i\eta_i^{(g)}}{F_g}+\frac{\Phi_i\eta_i^{(c)}}{F_c c_i}\Big)\leq T_i^{max}, \quad \forall i\in\mathcal{N}, \label{eq:time}\\
+& z_i\Big(\frac{\bar{V}_i}{\sqrt{m_i}}+\frac{\bar{W}_i}{\sqrt{N_{\Upsilon_i}}}\Big)\leq E_i^{\max},\quad \forall i\in\mathcal{N}, \label{eq:error}\\
+& \sum_{i=1}^{N} z_i R_i^{\mathrm{dc}} \leq R^{\mathrm{cloud}}, \label{eq:R_all} \\
+& \sum_{i=1}^{N} z_i B_i \leq B^{\mathrm{bh}}, \label{eq:bw_all} \\
+& \sum_{i=1}^{N} c_i \leq N_c, \label{eq:sum_cpus} \\
+& c^{\min} z_i \leq c_i \leq \Psi_i z_i ,\quad \forall i\in\mathcal{N}, \label{eq:c_limits} \\
+& z_i\leq m_i \leq m_i^{\max} z_i ,\quad m_i\in\mathbb{Z}_{\geq 0},\quad \forall i\in\mathcal{N}, \label{eq:m_bounds}\\
 & \sum_{i=1}^{N}{z_i} \leq N_g, \label{eq:sum_gpus} \\
-& 1 \leq m_{i}, \quad \forall i \in \mathcal{N}, \label{eq:min_m} \\
-& z_i \in \{0,1\}, \quad \forall i \in \mathcal{N}. \label{eq:binary_z}
+& z_i \in \{0,1\}, \quad \forall i\in\mathcal{N}. \label{eq:binary_z}
 \end{align}
 \end{subequations}
 
@@ -515,8 +522,7 @@ The objective function in (\ref{eq:obj}) minimizes two components. The first com
 
 
 
-Constraint (\ref{eq:time}) ensures the training time is within its allocated episode time. For a given $E_i^{min}$, constraint (\ref{eq:error}) guarantees that GAN $i$ undergoes a minimum number of training iterations, $m_i$, to prevent low-quality GANs. Bandwidth limit for uploading all of GAN training data from MBS to the cloud is indicated by constraint (\ref{eq:R_all}). Constraints (\ref{eq:bw_all}) limit the total available shared wireless backhaul bandwidth from SBSs to MBS.
-Constraint (\ref{eq:sum_cpus}) limits the CPU usage of the MEC and each DRL. Constraint (\ref{eq:sum_gpus}) limits the number of GANs to the number of available GPUs and defines the minimum value of $m_i$. Since I assume a time-sharing policy for CPU cores, $c_i$ is a positive real number.
+Constraint (\ref{eq:time}) enforces sequential upload, GAN, and DRL times within \(T_i^{\max}\). Constraint (\ref{eq:error}) enforces \(E_i\le E_i^{\max}\) (upper fidelity tolerance). \(\sum_i z_i R_i^{\mathrm{dc}}\le R^{\mathrm{cloud}}\) budgets MBS\,$\rightarrow$\,cloud goodput; practitioners may set \(R_i^{\mathrm{dc}}=\min\{R_i,R_i^{\mathrm{fwd}}\}\) for back-to-back bottlenecks where \(R_i\) denotes SBS uplink and \(R_i^{\mathrm{fwd}}\) the data-center leg. \(\sum_i z_i B_i\le B^{\mathrm{bh}}\) caps pooled wireless spectrum. Relations (\ref{eq:c_limits})--(\ref{eq:m_bounds}) link CPU and iteration counts with \(z_i\) and ensure valid denominators via \(c^{\min}\) (integer cores require \(c^{\min}\ge1\)). Constraint (\ref{eq:sum_cpus}) bounds MEC pooling; (\ref{eq:sum_gpus}) mirrors GPU concurrency \(N_g\).
 
 
 
